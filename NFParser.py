@@ -19,39 +19,39 @@ def createElementTree(xml):
     elementos = sorted(elementos, key=lambda x: x[1])
 
     arvore, _ = parseElements(elementos, -1)
-    arvore.add_text(xml)
+    arvore.addText(xml)
 
     return arvore
 
 def parseElements(elementsList, start):
     if start == -1:
         arvore = ElementRoot()
-    else:
-        arvore = Element(elementsList[start][0])
+        newElement, end = parseElements(elementsList, 0)
+        arvore.addChild(newElement)
+        return arvore, len(elementsList)
 
-    end = start+1
-    for i, elemento in enumerate(elementsList[start+1:]):
-        if i+start+1 < end-1:
-            continue
-        if elemento[3] == 0:
-            newElement, end = parseElements(elementsList, i+start+1)
-            arvore.add_child(newElement)
-        elif start != -1:
-            arvore.add_text_indexes(elementsList[start][2], elemento[1])
-            end += 1
-            break
-        end += 1
+    arvore = Element(elementsList[start][0])
 
-    return arvore, end
+    i = start
+    while i < len(elementsList):
+        if elementsList[i][3] == 0:
+            newElement, i = parseElements(elementsList, i+1)
+            arvore.addChild(newElement)
+        else:
+            arvore.addTextIndexes(elementsList[start][2], elementsList[i][1])
+            return arvore, i
+        i += 1
+
+    return arvore, i
 
 class ElementRoot:
     def __init__(self):
         self.childreen = []
 
-    def add_child(self, child):
+    def addChild(self, child):
         self.childreen.append(child)
 
-    def add_text(self, text):
+    def addText(self, text):
         self.text = text
 
     def getText(self, child):
@@ -65,7 +65,7 @@ class ElementRoot:
             paths.extend(alo)
 
         if len(self.childreen) == 0:
-            return [self.tag]
+            return [""]
         return paths
 
     def getChildByPath(self, path):
@@ -87,7 +87,7 @@ class Element(ElementRoot):
         super().__init__()
         self.tag = tag
 
-    def add_text_indexes(self, textStart, textEnd):
+    def addTextIndexes(self, textStart, textEnd):
         self.textStart = textStart
         self.textEnd = textEnd
 
