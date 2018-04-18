@@ -30,3 +30,4 @@ optional arguments:
 ---
 Para instalar basta apenas digitar em uma sessão do terminal
 `git clone https://github.com/steckmarco/EA876-Trabalho1.git`
+
