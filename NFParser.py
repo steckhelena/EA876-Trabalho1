@@ -1,10 +1,6 @@
-import sys
-
-if sys.version_info[0] != 3:
-    print("This script requires at least Python version 3!")
-    sys.exit(1)
-
 import re
+import argparse
+import os
 
 def createElementTree(xml):
     """
@@ -199,10 +195,14 @@ def genericToFloat(tree, element):
     return float('.'.join(ret))
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
-        exit()
-    
+    # Lida com os argumentos da linha de comando
+    parser = argparse.ArgumentParser(description="""Processa uma nota fiscal eletronica em formato XML e gera um arquivo de saida em formato CSV no seguinte formato:
+            MUNICIPIO_GERADOR,MUNICIPIO_PRESTADOR,VALOR_NF,VALOR_ISS_RETIDO""")
+    parser.add_argument("path", help="Caminho para o arquivo xml da nota fiscal.")
+    parser.add_argument("-v", "--verbose", help="Imprime a saida csv do programa em stdin.", action="store_true")
+    parser.add_argument("--dry-run", help="Nao gera os arquivos csv mas executa o programa.", action="store_true")
+    args = parser.parse_args()
+
     # Estas sao as listas com os filtros utilizados para procurar os conteudo na nota fiscal, cada sublista eh um filtro
     # A posicao do filtro na lista determina o seu peso, quanto mais para o inicio maior sera seu peso.
     listaGerador = [["tomador", "cidade"], ["tomador", "municipio"], ["tomador", "cep"], ["tomador", "codigo", "municipio"]]
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     encoding = ""  # Encoding do arquivo xml
 
     # Busca o encoding do arquivo xml se um header xml com o encoding estiver presente
-    with open(sys.argv[1], 'rb') as fileIn:
+    with open(args.path, 'rb') as fileIn:
         encoding = re.match("<\?xml.*?encoding=.*?\?>", str(fileIn.readline(), "utf-8"))
         if encoding is not None:
             encoding = re.search("encoding=\".*?\"", encoding.group()).group()
@@ -224,7 +224,7 @@ if __name__ == "__main__":
             encoding = "utf-8"
     
     # Recupera o conteudo do arquivo xml
-    with open(sys.argv[1], 'r', encoding=encoding) as fileIn:
+    with open(args.path, 'r', encoding=encoding) as fileIn:
         content = fileIn.read()
     
     # Estas listas conterao os possiveis elementos da arvore xml que sao as respostas procuradas na NF
@@ -306,6 +306,14 @@ if __name__ == "__main__":
     else:
         iss = 0.0
     
-    print(municipioGerador, municipioPrestador, valorServico, iss, sep=',')
+    # Saida verbosa do programa(mesma que o arquivo csv)
+    if args.verbose or args.dry_run:
+        print(municipioGerador, municipioPrestador, valorServico, iss, sep=',')
+    
+    # Gera o arquivo de saida csv
+    if not args.dry_run:
+        name = os.path.splitext(args.path)[0] + '.csv'
+        with open(name, 'w') as fileOut:
+            print(municipioGerador, municipioPrestador, valorServico, iss, sep=',', file=fileOut)
 
     
