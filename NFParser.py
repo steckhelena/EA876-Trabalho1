@@ -91,24 +91,64 @@ class Element(ElementRoot):
         self.textStart = textStart
         self.textEnd = textEnd
 
-def test(arvore, indent, pIndent):
-    if type(arvore) is ElementRoot:
-        print(" "*pIndent+"|"+" "*indent+"Starting Root!")
-    else:
-        print(" "*pIndent+"|"+" "*indent + "Starting "+arvore.tag+" with childreen:")
-        if arvore.tag == "numero":
-            print(len(arvore.childreen))
-    indent += 2
-    for child in arvore.childreen:
-        test(child, indent, indent-2)
+def abbreviationHeuristics(tree, lista):
+    answers = []
+    for path in tree.getAllPaths():
+        score = 0
+        for filtro in lista:
+            prob = 0
+            for word in filtro:
+                if word in path:
+                    prob += 1
+                else:
+                    # Procura todos os indices que podem conter a primeira letra da palavra
+                    abbIndexes = [index for index, value in enumerate(path) if value == word[0]]
+                    pathSepIndexes = [index for index, value in enumerate(path) if value == '/']
+                    possible = []
+                    for index in abbIndexes:
+                        aux = index
+                        lastWordIndex = 0
+                        abbLen = 0
+                        closestSepIndex = 0
+                        for i, v in enumerate(pathSepIndexes):
+                            if v < index:
+                                closestSepIndex = i
+                            else:
+                                break
+                        while True:
+                            aux += 1
+                            if path[aux] != '/' and path[aux] in word[lastWordIndex:]:
+                                abbLen += 1
+                                lastWordIndex = word.find(path[aux], lastWordIndex)
+                            else:
+                                break
+                        sepStart = pathSepIndexes[closestSepIndex]
+                        sepEnd = pathSepIndexes[closestSepIndex+1]
+                        possible.append((abbLen/len(word))*((aux-index)/len(path[sepStart:sepEnd])))
+                    if possible:
+                        prob += max(possible)
+            prob = prob/len(filtro)
+            score += prob*(len(lista)-lista.index(filtro))
+            if score > 9:
+                print(path, score)
+        answers.append((tree.getChildByPath(path), score))
+    
+    return answers
+
+def genericToFloat(tree, element):
+    text = tree.getText(element).replace(',', '.')
+    ret = text.split('.')[:-1]
+    ret = [''.join(ret).replace('.', '')]
+    ret.append(text.split('.')[-1])
+    return float('.'.join(ret))
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         #print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
         exit()
     
-    listaGerador = [["tomador", "cidade"], ["tomador", "cep"], ["tomador", "municipio"], ["tomador", "codigo", "municipio"]]
-    listaPrestador = [["prestador", "cidade"], ["prestador", "cep"], ["prestador", "municipio"], ["prestador", "codigo"," municipio"]]
+    listaGerador = [["tomador", "cidade"], ["tomador", "municipio"], ["tomador", "cep"], ["tomador", "codigo", "municipio"]]
+    listaPrestador = [["prestador", "cidade"], ["prestador", "municipio"], ["prestador", "cep"], ["prestador", "codigo"," municipio"]]
     listaValor = [["valor", "nota"], ["valorservicos"], ["valor", "servico"]]
     listaIss = [["valoriss"], ["valor", "iss"], ["iss", "ret"]]
 
@@ -151,6 +191,15 @@ if __name__ == "__main__":
                 issRetido.append((tree.getChildByPath(path), len(listaIss)-listaIss.index(filtro)))
                 break
 
+    if not mGerador:
+        mGerador = abbreviationHeuristics(tree, listaGerador)
+    if not mPrestador:
+        mPrestador = abbreviationHeuristics(tree, listaPrestador)
+    if not valor:
+        valor = abbreviationHeuristics(tree, listaValor)
+    if not issRetido:
+        issRetido = abbreviationHeuristics(tree, listaIss)
+
     tmpGerador = []
     for v in mGerador:
         text = tree.getText(v[0])
@@ -168,22 +217,22 @@ if __name__ == "__main__":
         text = tree.getText(v[0])
         if text.isdigit() and 7 <= len(text) <= 8:
             tmpPrestador.append(v)
-        elif not tree.getText(v[0]).isdigit():
+        elif not text.isdigit():
             tmpPrestador.append(v)
     prestadorMax = max(tmpPrestador, key=lambda x: x[1])[1]
     mPrestador = [v for v in tmpPrestador if v[1] >= prestadorMax]
     municipioPrestador = tree.getText(mPrestador[0][0])
 
-    valor = [v for v in valor if tree.getText(v[0]).replace(',', '.').replace('.','',1).isdigit()]
+    valor = [v for v in valor if tree.getText(v[0]).replace(',', '.').replace('.','').isdigit()]
     valorMax = max(valor, key=lambda x: x[1])[1]
     valor = [v for v in valor if v[1] >= valorMax]
-    valor = [float(tree.getText(v[0]).replace(",", ".")) for v in valor if float(tree.getText(v[0]).replace(",", ".")) > 0]
+    valor = [genericToFloat(tree, v[0]) for v in valor if genericToFloat(tree, v[0]) > 0]
     valorServico = max(valor)
-
-    issRetido = [v for v in issRetido if tree.getText(v[0]).replace(',', '.').replace('.','',1).isdigit()]
+    
+    issRetido = [v for v in issRetido if tree.getText(v[0]).replace(',', '.').replace('.','').isdigit()]
     issMax = max(issRetido, key=lambda x: x[1])[1]
     issRetido = [v for v in issRetido if v[1] >= issMax]
-    issRetido = [float(tree.getText(v[0]).replace(",", ".")) for v in issRetido if (float(tree.getText(v[0]).replace(",", ".")) > 0 and float(tree.getText(v[0]).replace(",", ".")) != valorServico)]
+    issRetido = [genericToFloat(tree, v[0]) for v in issRetido if (genericToFloat(tree, v[0]) > 0 and genericToFloat(tree, v[0]) != valorServico)]
     if issRetido:
         iss = max(issRetido)
     else:
