@@ -2,6 +2,14 @@ import sys
 import re
 
 def createElementTree(xml):
+    """
+    Visita cada no do arquivo xml e retorna uma arvore com todas as relacoes.
+
+    Esta funcao retorna um ElementRoot criado a partir das tags encontradas no
+    arquivo xml, ela primeiramente encontra as tags de abertura e fechamento e
+    as ordena em uma lista unica para entao ser passada para a funcao
+    parseElements que montara a arvore em si.
+    """
     tagInicio = re.compile("(<[^/\!\?].*?>)", re.IGNORECASE | re.UNICODE)
     tagFim = re.compile("(</.*?>)", re.IGNORECASE | re.UNICODE)
 
@@ -24,6 +32,14 @@ def createElementTree(xml):
     return arvore
 
 def parseElements(elementsList, start):
+    """
+    A partir da elementsList monta recursivamente uma arvore de relacoes xml.
+
+    Esta funcao monta recursivamente a raiz e os membros filhos de cada no da
+    classe ElementRoot, realiza isso chamando recursivamente ela mesma quando
+    encontra uma tag de abertura e retornando quando acha uma tag de fechamento.
+    Esta funcao apenas funciona com arquivos xml validos.
+    """
     if start == -1:
         arvore = ElementRoot()
         newElement, end = parseElements(elementsList, 0)
@@ -45,19 +61,30 @@ def parseElements(elementsList, start):
     return arvore, i
 
 class ElementRoot:
+    """
+    Classe que representa a raiz de uma arvore de relacoes xml.
+    """
     def __init__(self):
         self.childreen = []
 
     def addChild(self, child):
+        """Adiciona um no filho ao elemento da arvore."""
         self.childreen.append(child)
 
     def addText(self, text):
+        """Adiciona uma string a partir da qual getText extraira os seus membros."""
         self.text = text
 
     def getText(self, child):
+        """Retorna todo o texto encontrado entre as tags de abertura e fechamento do no."""
         return self.text[child.textStart:child.textEnd]
 
     def getAllPaths(self):
+        """
+        Retorna todos os caminhos da raiz ate as folhas.
+
+        O formato dos caminhos se da como: child/child1/child2/.../childN/
+        """
         paths = []
 
         for child in self.childreen:
@@ -69,6 +96,7 @@ class ElementRoot:
         return paths
 
     def getChildByPath(self, path):
+        """Retorna um elemento da arvore a partir do caminho no mesmo formato do retornado por getAllPaths"""
         path = path.split('/')
         parent = self
         for p in path:
@@ -83,15 +111,22 @@ class ElementRoot:
 
 
 class Element(ElementRoot):
+    """
+    Classe que representa um elemento que nao a raiz da arvore de relacoes xml.
+    """
     def __init__(self, tag):
         super().__init__()
         self.tag = tag
 
     def addTextIndexes(self, textStart, textEnd):
+        """Adiciona os indices do texto que representam o conteudo entre as tags deste elemento."""
         self.textStart = textStart
         self.textEnd = textEnd
 
 def abbreviationHeuristics(tree, lista):
+    """
+    Esta funcao atribui um score para cada caminho na arvore de ser alguma abreviacao das palavras na lista.
+    """
     answers = []
     for path in tree.getAllPaths():
         score = 0
@@ -103,12 +138,16 @@ def abbreviationHeuristics(tree, lista):
                 else:
                     # Procura todos os indices que podem conter a primeira letra da palavra
                     abbIndexes = [index for index, value in enumerate(path) if value == word[0]]
+                    # Procura todos os indices que separam o caminho
                     pathSepIndexes = [index for index, value in enumerate(path) if value == '/']
                     possible = []
                     for index in abbIndexes:
                         aux = index
+                        # Ultimo indice da palavra em que foi encontrada a letra que pode estar na abreviacao
                         lastWordIndex = 0
+                        # Tamanho da abreviacao
                         abbLen = 0
+                        # Representa o indice da lista pathSepIndexes que contem a string atual procurada
                         closestSepIndex = 0
                         for i, v in enumerate(pathSepIndexes):
                             if v < index:
@@ -124,18 +163,30 @@ def abbreviationHeuristics(tree, lista):
                                 break
                         sepStart = pathSepIndexes[closestSepIndex]
                         sepEnd = pathSepIndexes[closestSepIndex+1]
+                        # Calcula o scroe da palavra atual ser uma abreviacao de 'word' de 0 a 1
                         possible.append((abbLen/len(word))*((aux-index)/len(path[sepStart:sepEnd])))
                     if possible:
                         prob += max(possible)
+            # Limita a probabilidade entre 0 e 1
             prob = prob/len(filtro)
+            # Adiciona ao score a probabilidade com um fator relacionado ao seu indice na lista de este caminho ser a resposta
             score += prob*(len(lista)-lista.index(filtro))
-            if score > 9:
-                print(path, score)
+        # Adiciona o elemento representado pelo caminho e seu score a lista de retorno
         answers.append((tree.getChildByPath(path), score))
     
     return answers
 
 def genericToFloat(tree, element):
+    """
+    Retorna um numero qualquer em string como float.
+
+    Para qualquer numero formatado com casas de milhares e separador decimal 
+    retorna um float.
+    Exemplo:
+    "1999,7" -> 1999.7
+    "1,999.7" -> 1999.7
+    "1.999,7" -> 1999.7
+    """
     text = tree.getText(element).replace(',', '.')
     ret = text.split('.')[:-1]
     ret = [''.join(ret).replace('.', '')]
@@ -144,34 +195,40 @@ def genericToFloat(tree, element):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        #print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
+        print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
         exit()
     
+    # Estas sao as listas com os filtros utilizados para procurar os conteudo na nota fiscal, cada sublista eh um filtro
+    # A posicao do filtro na lista determina o seu peso, quanto mais para o inicio maior sera seu peso.
     listaGerador = [["tomador", "cidade"], ["tomador", "municipio"], ["tomador", "cep"], ["tomador", "codigo", "municipio"]]
     listaPrestador = [["prestador", "cidade"], ["prestador", "municipio"], ["prestador", "cep"], ["prestador", "codigo"," municipio"]]
     listaValor = [["valor", "nota"], ["valorservicos"], ["valor", "servico"]]
     listaIss = [["valoriss"], ["valor", "iss"], ["iss", "ret"]]
+    
+    content = ""  # Conteudo do arquivo xml
+    encoding = ""  # Encoding do arquivo xml
 
-    content = ""
-    encoding = ""
-
-    # Retrieves file encoding if header is present
+    # Busca o encoding do arquivo xml se um header xml com o encoding estiver presente
     with open(sys.argv[1], 'rb') as fileIn:
         encoding = re.match("<\?xml.*?encoding=.*?\?>", str(fileIn.readline(), "utf-8"))
         if encoding is not None:
             encoding = re.search("encoding=\".*?\"", encoding.group()).group()
             encoding = encoding[len("encoding=\""):-1]
         else:
+            # Encoding padrao do xml
             encoding = "utf-8"
-
+    
+    # Recupera o conteudo do arquivo xml
     with open(sys.argv[1], 'r', encoding=encoding) as fileIn:
         content = fileIn.read()
-
+    
+    # Estas listas conterao os possiveis elementos da arvore xml que sao as respostas procuradas na NF
     mGerador = []
     mPrestador = []
     valor = []
     issRetido = []
-
+    
+    # Gera a arvore xml e procura pelas respostas em seus caminhos utilizando os filtros declarados acima
     tree = createElementTree(content)
     for path in tree.getAllPaths():
         for filtro in listaGerador:
@@ -190,7 +247,9 @@ if __name__ == "__main__":
             if all(word in path for word in filtro):
                 issRetido.append((tree.getChildByPath(path), len(listaIss)-listaIss.index(filtro)))
                 break
-
+    
+    # Se utilizando os filtros alguma das listas continua vazias utiliza uma heuristica para tentar encontrar
+    # o caminho com maior probabilidade de conter o elemento que se procura.
     if not mGerador:
         mGerador = abbreviationHeuristics(tree, listaGerador)
     if not mPrestador:
@@ -199,7 +258,8 @@ if __name__ == "__main__":
         valor = abbreviationHeuristics(tree, listaValor)
     if not issRetido:
         issRetido = abbreviationHeuristics(tree, listaIss)
-
+    
+    # Extrai o municipio gerador da lista mGerador, que contem as possiveis respostas
     tmpGerador = []
     for v in mGerador:
         text = tree.getText(v[0])
@@ -211,6 +271,7 @@ if __name__ == "__main__":
     mGerador = [v for v in tmpGerador if v[1] >= geradorMax]
     municipioGerador = tree.getText(mGerador[0][0])
     
+    # Extrai o municipio prestador da lista mPrestador, que contem as possiveis respostas
     mPrestador = [v for v in mPrestador if v[0] != mGerador[0][0]]
     tmpPrestador = []
     for v in mPrestador:
@@ -223,12 +284,14 @@ if __name__ == "__main__":
     mPrestador = [v for v in tmpPrestador if v[1] >= prestadorMax]
     municipioPrestador = tree.getText(mPrestador[0][0])
 
+    # Extrai o valor da NF da lista valor, que contem as possiveis respostas
     valor = [v for v in valor if tree.getText(v[0]).replace(',', '.').replace('.','').isdigit()]
     valorMax = max(valor, key=lambda x: x[1])[1]
     valor = [v for v in valor if v[1] >= valorMax]
     valor = [genericToFloat(tree, v[0]) for v in valor if genericToFloat(tree, v[0]) > 0]
     valorServico = max(valor)
     
+    # Extrai o valor do iss retido da lista issRetido, que contem as possiveis respostas
     issRetido = [v for v in issRetido if tree.getText(v[0]).replace(',', '.').replace('.','').isdigit()]
     issMax = max(issRetido, key=lambda x: x[1])[1]
     issRetido = [v for v in issRetido if v[1] >= issMax]
@@ -237,5 +300,7 @@ if __name__ == "__main__":
         iss = max(issRetido)
     else:
         iss = 0.0
+    
+    print(municipioGerador, municipioPrestador, valorServico, iss, sep=',')
 
-    print(municipioGerador, municipioPrestador, valorServico, iss)
+    
