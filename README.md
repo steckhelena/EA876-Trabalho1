@@ -24,10 +24,7 @@ optional arguments:
   --dry-run      Nao gera os arquivos csv mas executa o programa.
 ```
 ## Instalação
----
-**Nota!**
-**NFParser** requer Python >= 3
----
+#### **NFParser** requer Python >= 3
 Para instalar basta apenas digitar em uma sessão do terminal
 `git clone https://github.com/steckmarco/EA876-Trabalho1.git`
 
