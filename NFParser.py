@@ -29,13 +29,13 @@ def parseElements(elementsList, start):
         newElement, end = parseElements(elementsList, 0)
         arvore.addChild(newElement)
         return arvore, len(elementsList)
-
+    
     arvore = Element(elementsList[start][0])
-
-    i = start
+    
+    i = start+1
     while i < len(elementsList):
         if elementsList[i][3] == 0:
-            newElement, i = parseElements(elementsList, i+1)
+            newElement, i = parseElements(elementsList, i)
             arvore.addChild(newElement)
         else:
             arvore.addTextIndexes(elementsList[start][2], elementsList[i][1])
@@ -91,20 +91,102 @@ class Element(ElementRoot):
         self.textStart = textStart
         self.textEnd = textEnd
 
+def test(arvore, indent, pIndent):
+    if type(arvore) is ElementRoot:
+        print(" "*pIndent+"|"+" "*indent+"Starting Root!")
+    else:
+        print(" "*pIndent+"|"+" "*indent + "Starting "+arvore.tag+" with childreen:")
+        if arvore.tag == "numero":
+            print(len(arvore.childreen))
+    indent += 2
+    for child in arvore.childreen:
+        test(child, indent, indent-2)
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
+        #print("Error! Please use the following syntax to call the program:\nNFParser.py caminho_para_NF.xml")
         exit()
+    
+    listaGerador = [["tomador", "cidade"], ["tomador", "cep"], ["tomador", "municipio"], ["tomador", "codigo", "municipio"]]
+    listaPrestador = [["prestador", "cidade"], ["prestador", "cep"], ["prestador", "municipio"], ["prestador", "codigo"," municipio"]]
+    listaValor = [["valor", "nota"], ["valorservicos"], ["valor", "servico"]]
+    listaIss = [["valoriss"], ["valor", "iss"], ["iss", "ret"]]
 
     content = ""
+    encoding = ""
 
-    with open(sys.argv[1], 'r', encoding="utf-8") as fileIn:
+    # Retrieves file encoding if header is present
+    with open(sys.argv[1], 'rb') as fileIn:
+        encoding = re.match("<\?xml.*?encoding=.*?\?>", str(fileIn.readline(), "utf-8"))
+        if encoding is not None:
+            encoding = re.search("encoding=\".*?\"", encoding.group()).group()
+            encoding = encoding[len("encoding=\""):-1]
+        else:
+            encoding = "utf-8"
+
+    with open(sys.argv[1], 'r', encoding=encoding) as fileIn:
         content = fileIn.read()
 
-    tree = createElementTree(content)
-    for i in tree.getAllPaths():
-        print(i)
-        print(tree.getText(tree.getChildByPath(i)))
+    mGerador = []
+    mPrestador = []
+    valor = []
+    issRetido = []
 
+    tree = createElementTree(content)
+    for path in tree.getAllPaths():
+        for filtro in listaGerador:
+            if all(word in path for word in filtro):
+                mGerador.append((tree.getChildByPath(path), len(listaGerador)-listaGerador.index(filtro)))
+                break
+        for filtro in listaPrestador:
+            if all(word in path for word in filtro):
+                mPrestador.append((tree.getChildByPath(path), len(listaPrestador)-listaPrestador.index(filtro)))
+                break
+        for filtro in listaValor:
+            if all(word in path for word in filtro):
+                valor.append((tree.getChildByPath(path), len(listaValor)-listaValor.index(filtro)))
+                break
+        for filtro in listaIss:
+            if all(word in path for word in filtro):
+                issRetido.append((tree.getChildByPath(path), len(listaIss)-listaIss.index(filtro)))
+                break
+
+    tmpGerador = []
+    for v in mGerador:
+        text = tree.getText(v[0])
+        if text.isdigit() and 7 <= len(text) <= 8:
+            tmpGerador.append(v)
+        elif not text.isdigit():
+            tmpGerador.append(v)
+    geradorMax = max(tmpGerador, key=lambda x: x[1])[1]
+    mGerador = [v for v in tmpGerador if v[1] >= geradorMax]
+    municipioGerador = tree.getText(mGerador[0][0])
     
-    
+    mPrestador = [v for v in mPrestador if v[0] != mGerador[0][0]]
+    tmpPrestador = []
+    for v in mPrestador:
+        text = tree.getText(v[0])
+        if text.isdigit() and 7 <= len(text) <= 8:
+            tmpPrestador.append(v)
+        elif not tree.getText(v[0]).isdigit():
+            tmpPrestador.append(v)
+    prestadorMax = max(tmpPrestador, key=lambda x: x[1])[1]
+    mPrestador = [v for v in tmpPrestador if v[1] >= prestadorMax]
+    municipioPrestador = tree.getText(mPrestador[0][0])
+
+    valor = [v for v in valor if tree.getText(v[0]).replace(',', '.').replace('.','',1).isdigit()]
+    valorMax = max(valor, key=lambda x: x[1])[1]
+    valor = [v for v in valor if v[1] >= valorMax]
+    valor = [float(tree.getText(v[0]).replace(",", ".")) for v in valor if float(tree.getText(v[0]).replace(",", ".")) > 0]
+    valorServico = max(valor)
+
+    issRetido = [v for v in issRetido if tree.getText(v[0]).replace(',', '.').replace('.','',1).isdigit()]
+    issMax = max(issRetido, key=lambda x: x[1])[1]
+    issRetido = [v for v in issRetido if v[1] >= issMax]
+    issRetido = [float(tree.getText(v[0]).replace(",", ".")) for v in issRetido if (float(tree.getText(v[0]).replace(",", ".")) > 0 and float(tree.getText(v[0]).replace(",", ".")) != valorServico)]
+    if issRetido:
+        iss = max(issRetido)
+    else:
+        iss = 0.0
+
+    print(municipioGerador, municipioPrestador, valorServico, iss)
