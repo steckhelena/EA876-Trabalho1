@@ -190,11 +190,38 @@ def genericToFloat(tree, element):
     "1,999.7" -> 1999.7
     "1.999,7" -> 1999.7
     """
-    text = tree.getText(element).replace(',', '.')
+    text = tree.getText(element)
+
+    if text.isdigit():
+        return float(text)
+
+    text = text.replace(',', '.')
     ret = text.split('.')[:-1]
     ret = [''.join(ret).replace('.', '')]
     ret.append(text.split('.')[-1])
     return float('.'.join(ret))
+
+def isCep(text):
+    """Retorna True se o valor tiver o formato de um CEP e False caso contrario."""
+    if text.isdigit() and len(text) == 8:
+        return True
+    elif len(text) == 9 and text[-4] == '-' and (text[:-4]+text[-3:]).isdigit():
+        return True
+    else:
+        return False
+
+def isIbge(text):
+    """Retorna True se o valor tiver o formato de um codigo de municipio do IBGE e False caso contrario."""
+    if text.isdigit() and len(text) == 7:
+        return True
+    elif len(text) == 8 and text[2] == '-' and (text[:2]+text[3:]).isdigit():
+        return True
+    else:
+        return False
+
+def isName(text):
+    """Retorna True se o valor nao contiver nenhum numero e False caso contrario."""
+    return not any(char.isdigit() for char in text)
 
 if __name__ == "__main__":
     # Lida com os argumentos da linha de comando
@@ -270,9 +297,9 @@ if __name__ == "__main__":
     tmpGerador = []
     for v in mGerador:
         text = tree.getText(v[0])
-        if text.isdigit() and 7 <= len(text) <= 8:
+        if isIbge(text) or isCep(text):
             tmpGerador.append(v)
-        elif not text.isdigit():
+        elif isName(text):
             tmpGerador.append(v)
     geradorMax = max(tmpGerador, key=lambda x: x[1])[1]
     mGerador = [v for v in tmpGerador if v[1] >= geradorMax]
@@ -283,9 +310,9 @@ if __name__ == "__main__":
     tmpPrestador = []
     for v in mPrestador:
         text = tree.getText(v[0])
-        if text.isdigit() and 7 <= len(text) <= 8:
+        if isIbge(text) or isCep(text):
             tmpPrestador.append(v)
-        elif not text.isdigit():
+        elif isName(text):
             tmpPrestador.append(v)
     prestadorMax = max(tmpPrestador, key=lambda x: x[1])[1]
     mPrestador = [v for v in tmpPrestador if v[1] >= prestadorMax]
